@@ -129,6 +129,20 @@ def find_highest_markdown_heading_level(lines):
 
     return highest_heading_level
 
+def chunk_text(text, max_size=8192):
+    if len(text) <= max_size:
+        return [text]
+    
+    avg_chunk_size = max_size
+    num_chunks = -(-len(text) // avg_chunk_size)  # Ceiling division
+    
+    for i in range(1, num_chunks + 1):
+        chunk_size = len(text) // i
+        if chunk_size <= max_size:
+            return [text[j:j+chunk_size] for j in range(0, len(text), chunk_size)]
+    
+    return [text] 
+
 async def split_markdown(text):
     """
     Takes a string representation of a markdown file as input.
@@ -141,50 +155,56 @@ async def split_markdown(text):
     Returns:
         list of tuples: A list of tuples containing the section title (str) and section content (str).
     """
-    lines = text.split('\n')
+    try:
+        lines = text.split('\n')
 
-    # Remove the title heading (if present) from the text
-    if (len(lines) > 0) and (lines[0].startswith('#')):
-        lines = lines[1:]
+        # Remove the title heading (if present) from the text
+        if (len(lines) > 0) and (lines[0].startswith('#')):
+            lines = lines[1:]
 
-    # Find the highest heading level
-    highest_heading_level = find_highest_markdown_heading_level(lines)
-    sections = []
+        # Find the highest heading level
+        highest_heading_level = find_highest_markdown_heading_level(lines)
+        sections = []
 
-    # If there are no headings, print a warning and return an empty list
-    if highest_heading_level is None:
-        document = Document(text=text)
-        nodes = splitter.get_nodes_from_documents([document])
-        for node in nodes:
-            messages = create_subtitles_generation_messages(node.text)
-            subtitle = await run_model(messages)
-            sections.append((subtitle, node.text))
+        # If there are no headings, print a warning and return an empty list
+        if highest_heading_level is None:
+            texts = chunk_text(text)
+            for text in texts:
+                document = Document(text=text)
+                nodes = splitter.get_nodes_from_documents([document])
+                for node in nodes:
+                    messages = create_subtitles_generation_messages(node.text)
+                    subtitle = await run_model(messages)
+                    sections.append((subtitle, node.text))
+            return sections
+
+        # Construct the heading prefix for splitting
+        headings_prefix = ("#" * highest_heading_level) + " "
+
+        current_section_title = ''
+        current_section = []
+
+        for line in lines:
+            # Check if the line starts with the highest heading level prefix
+            if line.startswith(headings_prefix):
+                # If the current_section is not empty, add it to the sections list
+                if len(current_section) > 0:
+                    current_section_body = '\n'.join(current_section)
+                    sections.append((current_section_title, current_section_body))
+
+                    # Update the current_section_title and clear the current_section
+                    current_section_title = line.strip()
+                    current_section = []
+            else:
+                # Add the line to the current_section
+                current_section.append(line)
+
+        # Add the last section to the sections list (if not empty)
+        if len(current_section) > 0:
+            current_section_body = '\n'.join(current_section)
+            sections.append((current_section_title, current_section_body))
+
         return sections
-
-    # Construct the heading prefix for splitting
-    headings_prefix = ("#" * highest_heading_level) + " "
-
-    current_section_title = ''
-    current_section = []
-
-    for line in lines:
-        # Check if the line starts with the highest heading level prefix
-        if line.startswith(headings_prefix):
-            # If the current_section is not empty, add it to the sections list
-            if len(current_section) > 0:
-                current_section_body = '\n'.join(current_section)
-                sections.append((current_section_title, current_section_body))
-
-                # Update the current_section_title and clear the current_section
-                current_section_title = line.strip()
-                current_section = []
-        else:
-            # Add the line to the current_section
-            current_section.append(line)
-
-    # Add the last section to the sections list (if not empty)
-    if len(current_section) > 0:
-        current_section_body = '\n'.join(current_section)
-        sections.append((current_section_title, current_section_body))
-
-    return sections
+    except Exception as e:
+        print(f"ERROR: {e}")
+        return []

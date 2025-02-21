@@ -78,7 +78,7 @@ async def extract_questions_from_text(file_path, text):
 
     if not are_tokens_available_for_both_conversations(num_tokens_text):
         # Split text and call function recursively
-        print(f"WARNING: Splitting '{file_path}' into smaller chunks.")
+        print(f"WARNING: Splitting '{file_path[:25]}' into smaller chunks.")
 
         # Build tasks for each subsection of the text
         tasks = []

@@ -112,6 +112,10 @@ env/
 venv/
 ENV/
 env.bak/
+.train_data.jsonl
+D:/data_preparation/training.ipynb
+.validation_data.jsonl
+.vitalik_fine_tuning_data.jsonl
 venv.bak/
 
 # Spyder project settings
